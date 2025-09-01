@@ -27,7 +27,10 @@ export class OpenAIResponseHandler {
   }
   run = async () => {};
   dispose = async () => {
-    
+    if (this.is_done) return;
+    this.is_done = true;
+    this.chatClient.off("ai_indicator.stop", this.handleStopGeneration);
+    this.onDisposal();
   };
   private handleStopGeneration = async (event: Event) => {};
   private handleStreamEvent = async (event: Event) => {};
