@@ -25,9 +25,28 @@ export class OpenAIResponseHandler {
   ) {
     this.chatClient.on("ai_indicator.stop", this.handleStopGeneration);
   }
+  run = async () => {};
+  dispose = async () => {
+    
+  };
   private handleStopGeneration = async (event: Event) => {};
   private handleStreamEvent = async (event: Event) => {};
-  private handleStreamError = async (error: Error) => {};
+  private handleStreamError = async (error: Error) => {
+    if(this.is_done) return;
+    await this.channel.sendEvent({
+      type: "ai_indicator.update",
+      ai_state:"AI_STATE_ERROR",
+      cid: this.channel.cid,
+      message_id: this.message.id,
+      error: error.message,
+    });
+    await this.chatClient.partialUpdateMessage(this.message.id, {
+      set:{
+        text: this.message_text + "\n\n**Error:** " + error.message,
+      }
+    });
+    await this.dispose();
+  };
   private performWebSearchResults = async (query: string): Promise<string> => {
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) {
@@ -63,6 +82,5 @@ export class OpenAIResponseHandler {
       return JSON.stringify({ error: "Error performing web search." });
     }
   };
-  run = async () => {};
-  dispose = async () => {};
+  
 }
