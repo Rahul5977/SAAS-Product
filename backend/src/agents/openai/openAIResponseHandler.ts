@@ -33,8 +33,35 @@ export class OpenAIResponseHandler {
     if (!apiKey) {
       return JSON.stringify({ error: "Tavily API key is not configured." });
     }
-    // Placeholder for actual web search logic
-    return JSON.stringify({ result: `Web search results for query: ${query}` });
+    console.log("Performing web search for query:", query);
+    try {
+      const response = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          query,
+          search_depth: "advanced",
+          max_results: 3,
+          include_answers: true,
+          safe_search: true,
+          include_raw_content: false,
+        }),
+      });
+      if(!response.ok){
+        const errorText = await response.text();
+        console.error("Tavily API error:", errorText);
+        return JSON.stringify({ error: "Error from Tavily API.", status: response.status ,detail: errorText});
+      }
+      const data = await response.json();
+      console.log(`Web search results for query "${query}":`, data);
+      return JSON.stringify(data);
+    } catch (error) {
+      console.error(`Error performing web search for query "${query}":`, error);
+      return JSON.stringify({ error: "Error performing web search." });
+    }
   };
   run = async () => {};
   dispose = async () => {};
