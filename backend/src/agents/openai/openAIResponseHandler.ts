@@ -10,7 +10,7 @@ import type {
 
 export class OpenAIResponseHandler {
   private message_text = "";
-  private chunk_couter = 0;
+  private chunk_counter = 0;
   private runId = "";
   private is_done = false;
   private last_update_time = 0;
@@ -65,7 +65,56 @@ export class OpenAIResponseHandler {
     });
     await this.dispose();
   };
-  private handleStreamEvent = async (event: Event) => {};
+  private handleStreamEvent = async (
+    event: OpenAI.Beta.Assistants.AssistantStreamEvent
+  ) => {
+    const { cid, id } = this.message;
+    if (event.event === "thread.run.created") {
+      console.log("Thread run created:", event);
+      this.runId = event.data.id;
+    } else if (event.event === "thread.message.delta") {
+      console.log("Thread message delta:", event);
+      const textDelta = event.data.delta.content?.[0];
+      if (textDelta?.type === "text" && textDelta.text) {
+        const now = Date.now();
+        this.message.text += textDelta.text.value || "";
+        if (now - this.last_update_time > 1000) {
+          this.last_update_time = now;
+          await this.chatClient.partialUpdateMessage(id, {
+            set: {
+              text: this.message_text,
+            },
+          });
+        }
+        this.chunk_counter++;
+      }
+    } else if (event.event === "thread.message.completed") {
+      console.log("Thread message completed:", event);
+      this.chatClient.partialUpdateMessage(id, {
+        set: {
+          text:
+            event.data.content[0].type === "text"
+              ? event.data.content[0].text.value
+              : this.message_text,
+        },
+      });
+      this.channel.sendEvent({
+        type: "ai_indicator.clear",
+        cid: cid,
+        message_id: id,
+      });
+    } else if (event.event === "thread.run.step.created") {
+      console.log("Thread run step created:", event);
+      if (event.data.step_details.type === "message_creation") {
+        this.channel.sendEvent({
+          type: "ai_indicator.update",
+          ai_state: "AI_STATE_GENERATING",
+          cid: cid,
+          message_id: id,
+        });
+      }
+    }
+  };
   private handleStreamError = async (error: Error) => {
     if (this.is_done) return;
     await this.channel.sendEvent({
